@@ -4,7 +4,6 @@
 #include <string>
 #include <filesystem>
 
-// Incluir directamente los .cpp de los algoritmos
 #include "algoritmos/kmp.cpp"
 #include "algoritmos/boyermoore.cpp"
 
