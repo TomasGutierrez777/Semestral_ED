@@ -6,6 +6,7 @@
 
 #include "algoritmos/kmp.cpp"
 #include "algoritmos/boyermoore.cpp"
+#include "algoritmos/rabinkarp.cpp"
 
 namespace fs = std::filesystem;
 
@@ -29,26 +30,36 @@ std::vector<std::pair<std::string, std::string>> leerArchivosRecursivos(const st
 int main() {
     std::string carpeta = "documentos";
     std::string patron;
-    std::cout << "Ingrese patrón a buscar: ";
+    std::cout << "Ingrese patron a buscar: ";
     std::getline(std::cin, patron);
 
     auto archivos = leerArchivosRecursivos(carpeta);
-
-    std::cout << "\n=== RESULTADOS KMP ===\n";
-    for (const auto& [ruta, contenido] : archivos) {
-        auto posiciones = kmpSearch(contenido, patron);
-        if (!posiciones.empty()) {
-            std::cout << "KMP encontró en: " << ruta << " posiciones: ";
-            for (int p : posiciones) std::cout << p << " ";
-            std::cout << std::endl;
-        }
-    }
 
     std::cout << "\n=== RESULTADOS Boyer-Moore ===\n";
     for (const auto& [ruta, contenido] : archivos) {
         auto posiciones = boyerMooreSearch(contenido, patron);
         if (!posiciones.empty()) {
-            std::cout << "BM encontró en: " << ruta << " posiciones: ";
+            std::cout << "BM encontro en: " << ruta << " posiciones: ";
+            for (int p : posiciones) std::cout << p << " ";
+            std::cout << std::endl;
+        }
+    }
+    
+    std::cout << "\n=== RESULTADOS Knuth-Morris-Pratt ===\n";
+    for (const auto& [ruta, contenido] : archivos) {
+        auto posiciones = kmpSearch(contenido, patron);
+        if (!posiciones.empty()) {
+            std::cout << "KMP encontro en: " << ruta << " posiciones: ";
+            for (int p : posiciones) std::cout << p << " ";
+            std::cout << std::endl;
+        }
+    }
+
+    std::cout << "\n=== RESULTADOS Rabin-Karp ===\n";
+    for (const auto& [ruta, contenido] : archivos) {
+        auto posiciones = rabinKarpSearch(contenido, patron);
+        if (!posiciones.empty()) {
+            std::cout << "RK encontro en: " << ruta << " posiciones: ";
             for (int p : posiciones) std::cout << p << " ";
             std::cout << std::endl;
         }

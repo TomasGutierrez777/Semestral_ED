@@ -13,3 +13,8 @@ g++ -std=c++17 -g main.cpp -o main.exe
 ```bash
 ./main.exe
 ```
+
+### Referencias
+Knuth-Morris-Pratt: https://www.youtube.com/watch?v=ynv7bbcSLKE
+
+Rabin-Karp: https://www.youtube.com/watch?v=yFHV7weZ_as
