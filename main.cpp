@@ -87,9 +87,16 @@ int main() {
     auto t5 = Clock::now();
     double rk_ms = ns(t5 - t4).count() * 1e-6;
 
+    //Indica el tiempo de ejecucion de: Creacion de estructura + Busqueda de patron (nota: ideal indicar ambos por separado HACER CAMBIOS)
+    auto t6 = Clock::now();
+    auto sa_pos = suffixArraySearch(T, patron);
+    auto t7 = Clock::now();
+    double sa_ms = ns(t7 - t6).count() * 1e-6;
+
     auto bm_res  = mapearPosiciones(bm_pos,  offsets, n);
     auto kmp_res = mapearPosiciones(kmp_pos, offsets, n);
     auto rk_res  = mapearPosiciones(rk_pos,  offsets, n);
+    auto sa_res  = mapearPosiciones(sa_pos,  offsets, n);
 
     auto imprimir = [&](const std::string& nombre,
                         const std::vector<std::vector<int>>& res,
@@ -108,16 +115,7 @@ int main() {
     imprimir("Boyer-Moore", bm_res, bm_ms);
     imprimir("Knuth-Morris-Pratt", kmp_res, kmp_ms);
     imprimir("Rabin-Karp", rk_res, rk_ms);
-
-    std::cout << "\n=== RESULTADOS Suffix Array ===\n";
-    for (const auto& [ruta, contenido] : archivos) {
-        auto posiciones = suffixArraySearch(contenido, patron);
-        if (!posiciones.empty()) {
-            std::cout << "SA encontro en: " << ruta << " posiciones: ";
-            for (int p : posiciones) std::cout << p << " ";
-            std::cout << std::endl;
-        }
-    }
-
+    imprimir("Suffix-Array", sa_res, sa_ms);
+    
     return 0;
 }
