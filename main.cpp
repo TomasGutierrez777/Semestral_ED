@@ -87,11 +87,18 @@ int main() {
     auto t5 = Clock::now();
     double rk_ms = ns(t5 - t4).count() * 1e-6;
 
-    //Indica el tiempo de ejecucion de: Creacion de estructura + Busqueda de patron (nota: ideal indicar ambos por separado HACER CAMBIOS)
+    //<------------Suffix Array-------------->
+    //Construccion de la estructura
     auto t6 = Clock::now();
-    auto sa_pos = suffixArraySearch(T, patron);
+    auto sa = suffix_array_construction(T);
     auto t7 = Clock::now();
-    double sa_ms = ns(t7 - t6).count() * 1e-6;
+    double sa_cms = ns(t7 - t6).count() * 1e-6;
+
+    //Busqueda del patron
+    auto t8 = Clock::now();
+    auto sa_pos = suffixArraySearch(T, patron, sa);
+    auto t9 = Clock::now();
+    double sa_ms = ns(t9 - t8).count() * 1e-6;
 
     auto bm_res  = mapearPosiciones(bm_pos,  offsets, n);
     auto kmp_res = mapearPosiciones(kmp_pos, offsets, n);
@@ -115,6 +122,7 @@ int main() {
     imprimir("Boyer-Moore", bm_res, bm_ms);
     imprimir("Knuth-Morris-Pratt", kmp_res, kmp_ms);
     imprimir("Rabin-Karp", rk_res, rk_ms);
+    std::cout<<"\n=== Construccion Suffix-Array ("<< sa_cms << " ms) ===\n|";
     imprimir("Suffix-Array", sa_res, sa_ms);
     
     return 0;

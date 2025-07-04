@@ -61,10 +61,7 @@ std::vector<int> suffix_array_construction(std::string s) {
 }
 
 //Busqueda de patron usando SA 
-std::vector<int> suffixArraySearch(const std::string& text, const std::string& pattern) {
-    std::cout << "Inicia la construcción de la estructura..." << std::endl;
-    auto SA = suffix_array_construction(text);
-    std::cout << "Termina la construcción." << std::endl;
+std::vector<int> suffixArraySearch(const std::string& text, const std::string& pattern, const std::vector<int>& SA) {
 
     std::vector<int> result;
 
