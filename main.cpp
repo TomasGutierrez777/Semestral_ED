@@ -7,6 +7,7 @@
 #include "algoritmos/kmp.cpp"
 #include "algoritmos/boyermoore.cpp"
 #include "algoritmos/rabinkarp.cpp"
+#include "estructuras de datos/suffixArrays.cpp"
 
 namespace fs = std::filesystem;
 
@@ -60,6 +61,16 @@ int main() {
         auto posiciones = rabinKarpSearch(contenido, patron);
         if (!posiciones.empty()) {
             std::cout << "RK encontro en: " << ruta << " posiciones: ";
+            for (int p : posiciones) std::cout << p << " ";
+            std::cout << std::endl;
+        }
+    }
+
+    std::cout << "\n=== RESULTADOS Suffix Array ===\n";
+    for (const auto& [ruta, contenido] : archivos) {
+        auto posiciones = suffixArraySearch(contenido, patron);
+        if (!posiciones.empty()) {
+            std::cout << "SA encontro en: " << ruta << " posiciones: ";
             for (int p : posiciones) std::cout << p << " ";
             std::cout << std::endl;
         }
