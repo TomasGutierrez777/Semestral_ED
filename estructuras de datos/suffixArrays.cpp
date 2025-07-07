@@ -1,40 +1,38 @@
-#pragma once
 #include <vector>
 #include <string>
 #include <algorithm>
 
-// --- Suffix Array: doubling + radix (two-pass counting sort) ---
+using vi = std::vector<int>;
 
-static inline void counting_sort_pairs(std::vector<int>& p,
-                                       const std::vector<int>& c,
-                                       int classes) {
+// -----------------------------------------------------
+// Construcción de suffix array (doubling + counting sort)
+// -----------------------------------------------------
+static void counting_sort(const vi& cls, vi& p) {
     int n = p.size();
-    std::vector<int> cnt(classes, 0), pn(n), pos(classes);
-    // 1) contar frecuencia de cada “clase”
-    for (int x : c) cnt[x]++;
-    // 2) prefijos para buckets
+    int classes = *std::max_element(cls.begin(), cls.end()) + 1;
+    vi cnt(classes, 0), p_new(n), pos(classes);
+    for (int c : cls) cnt[c]++;
     pos[0] = 0;
-    for (int i = 1; i < classes; ++i)
-        pos[i] = pos[i-1] + cnt[i-1];
-    // 3) ordenar p por clase c[p[i]]
+    for (int i = 1; i < classes; ++i) pos[i] = pos[i-1] + cnt[i-1];
     for (int x : p) {
-        int cl = c[x];
-        pn[ pos[cl]++ ] = x;
+        int c = cls[x];
+        p_new[pos[c]++] = x;
     }
-    p.swap(pn);
+    p.swap(p_new);
 }
 
-std::vector<int> suffix_array_construction(std::string s) {
+std::vector<int> suffix_array_construction(const std::string& s_in) {
+    // Trabajamos sobre s+'$'
+    std::string s = s_in;
     s.push_back('$');
     int n = s.size();
-    const int ALPHA = 256;
 
-    // 1) k = 0: ordenamos por el carácter único
-    std::vector<int> p(n), c(n), cnt(std::max(ALPHA, n), 0);
-    for (char ch : s) cnt[(unsigned char)ch]++;
-    for (int i = 1; i < ALPHA; ++i) cnt[i] += cnt[i-1];
+    // k = 0: orden por carácter
+    vi p(n), c(n), cnt(std::max(256, n), 0);
+    for (unsigned char ch : s) cnt[ch]++;
+    for (int i = 1; i < 256; ++i) cnt[i] += cnt[i-1];
     for (int i = 0; i < n; ++i)
-        p[ --cnt[(unsigned char)s[i]] ] = i;
+        p[--cnt[(unsigned char)s[i]]] = i;
 
     c[p[0]] = 0;
     int classes = 1;
@@ -43,57 +41,63 @@ std::vector<int> suffix_array_construction(std::string s) {
         c[p[i]] = classes - 1;
     }
 
-    // 2) k -> k+1: duplicamos la longitud de comparación
-    std::vector<int> pn(n), cn(n);
+    // Doubling
+    vi p_new(n), c_new(n);
     for (int h = 0; (1 << h) < n; ++h) {
-        // desplaza p[i] atrás 2^h para orden circular
         for (int i = 0; i < n; ++i) {
-            pn[i] = p[i] - (1 << h);
-            if (pn[i] < 0) pn[i] += n;
+            p_new[i] = p[i] - (1 << h);
+            if (p_new[i] < 0) p_new[i] += n;
         }
-        // radix sort: primero por segundo par, luego por primer par
-        // pero como hemos desplazado, basta un counting sort por clase
-        counting_sort_pairs(pn, c, classes);
+        counting_sort(c, p_new);
+        p = p_new;
 
-        // reconstruir clases cn
-        cn[p[0]] = 0;
-        classes = 1;
+        c_new[p[0]] = 0;
+        int classes_new = 1;
         for (int i = 1; i < n; ++i) {
-            int curr1 = c[p[i]];
-            int curr2 = c[(p[i] + (1 << h)) % n];
-            int prev1 = c[p[i-1]];
-            int prev2 = c[(p[i-1] + (1 << h)) % n];
-            if (curr1 != prev1 || curr2 != prev2) 
-                ++classes;
-            cn[p[i]] = classes - 1;
+            int cur1 = c[p[i]], cur2 = c[(p[i] + (1 << h)) % n];
+            int prev1 = c[p[i-1]], prev2 = c[(p[i-1] + (1 << h)) % n];
+            if (cur1 != prev1 || cur2 != prev2) ++classes_new;
+            c_new[p[i]] = classes_new - 1;
         }
-        c.swap(cn);
+        c = c_new;
+        classes = classes_new;
     }
 
-    // p[0] es la posición del ‘$’; lo quitamos para devolver SA
+    // Eliminamos el sufijo que empieza en '$' (era p[0])
     p.erase(p.begin());
     return p;
 }
 
-// Búsqueda con Suffix Array sin cambios
-inline std::vector<int> suffixArraySearch(const std::string& text,
-                                          const std::string& pattern,
-                                          const std::vector<int>& SA) {
-    std::vector<int> result;
-    int n = (int)text.size(), m = (int)pattern.size();
+// -----------------------------------------------------
+// Búsqueda usando el suffix array
+// -----------------------------------------------------
+std::vector<int>
+suffixArraySearch(const std::string& text_with_sentinel,
+                  const std::string& pattern,
+                  const std::vector<int>& SA) {
+    int n = SA.size();
+    int m = pattern.size();
     int l = 0, r = n;
+    // lower bound
     while (l < r) {
         int mid = (l + r) / 2;
-        if (text.compare(SA[mid], m, pattern) < 0) l = mid + 1;
-        else r = mid;
+        if (text_with_sentinel.compare(SA[mid], m, pattern) < 0)
+            l = mid + 1;
+        else
+            r = mid;
     }
-    int start = l; l = 0; r = n;
+    int start = l;
+    l = 0; r = n;
+    // upper bound
     while (l < r) {
         int mid = (l + r) / 2;
-        if (text.compare(SA[mid], m, pattern) <= 0) l = mid + 1;
-        else r = mid;
+        if (text_with_sentinel.compare(SA[mid], m, pattern) <= 0)
+            l = mid + 1;
+        else
+            r = mid;
     }
+    std::vector<int> res;
     for (int i = start; i < l; ++i)
-        result.push_back(SA[i]);
-    return result;
+        res.push_back(SA[i]);
+    return res;
 }

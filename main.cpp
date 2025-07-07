@@ -33,7 +33,7 @@ leerArchivosRecursivos(const std::string& carpeta) {
     return archivos;
 }
 
-// Versión a prueba de desbordamiento de mapearPosiciones
+// Mapea posiciones globales en T_full a posiciones por documento
 std::vector<std::vector<int>> mapearPosiciones(
     const std::vector<int>& posiciones,
     const std::vector<int>& offsets
@@ -44,7 +44,6 @@ std::vector<std::vector<int>> mapearPosiciones(
         auto it = std::upper_bound(offsets.begin(), offsets.end(), pos);
         if (it == offsets.begin() || it == offsets.end()) continue;
         int idx = int(it - offsets.begin()) - 1;
-        if (idx < 0 || idx >= n_docs) continue;
         resultados[idx].push_back(pos - offsets[idx]);
     }
     return resultados;
@@ -64,7 +63,7 @@ int main() {
         return 1;
     }
 
-    // 2) Concatenar T_full y offsets_full UNA VEZ
+    // 2) Concatenar T_full y offsets_full
     std::string T_full;
     std::vector<int> offsets_full;
     size_t suma = 0;
@@ -78,21 +77,22 @@ int main() {
     }
     offsets_full.push_back((int)T_full.size());
 
-    // 3) Construir SA_FULL UNA SOLA VEZ
+    // 3) Construir SA_FULL UNA SOLA VEZ (sobre T_full + '$')
+    std::cout << "\n-- SA_FULL build --\n";
     auto t_sa0 = Clock::now();
-    auto sa_full = suffix_array_construction(T_full);
+    auto sa_full = suffix_array_construction(T_full + "$");
     auto t_sa1 = Clock::now();
-    std::cout << "-- SA_FULL build: "
+    std::cout << "Tiempo build SA: "
               << ns(t_sa1 - t_sa0).count() * 1e-6
-              << " ms --\n";
+              << " ms\n";
 
-    // 4) Preparo tamaños de experimento: 10,20,... hasta total
+    // 4) Tamaños de experimento: 10,20,... hasta total
     std::vector<int> tamaños;
     for (int k = 10; k <= total; k += 10) tamaños.push_back(k);
     if (tamaños.empty()) tamaños.push_back(total);
 
     // Lambda de impresión
-auto imprimir = [&](const std::string& nombre,
+    auto imprimir = [&](const std::string& nombre,
                         const std::vector<std::vector<int>>& res,
                         double tiempo_ms,
                         const std::vector<std::pair<std::string,std::string>>& docs) {
@@ -154,9 +154,9 @@ auto imprimir = [&](const std::string& nombre,
         );
         imprimir("Rabin-Karp", rk_res, rk_ms, docs);
 
-        // Suffix-Array search (solo búsqueda)
+        // Suffix-Array search (uso T_full+"$")
         auto t6 = Clock::now();
-        auto sa_full_pos = suffixArraySearch(T_full, patron, sa_full);
+        auto sa_full_pos = suffixArraySearch(T_full + "$", patron, sa_full);
         auto t7 = Clock::now();
         double sa_ms = ns(t7 - t6).count() * 1e-6;
         std::vector<int> sa_pos;
