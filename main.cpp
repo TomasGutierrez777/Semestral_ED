@@ -1,3 +1,4 @@
+// main.cpp
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -5,6 +6,7 @@
 #include <filesystem>
 #include <algorithm>
 #include <chrono>
+#include <random>
 
 #include "algoritmos/boyermoore.cpp"
 #include "algoritmos/kmp.cpp"
@@ -12,11 +14,12 @@
 #include "estructuras de datos/suffixArrays.cpp"
 
 namespace fs = std::filesystem;
-
 using Clock = std::chrono::high_resolution_clock;
 using ns    = std::chrono::nanoseconds;
 
-// Lee recursivamente todos los .txt de la carpeta y devuelve pares (ruta, contenido)
+// -------------- funciones auxiliares --------------
+
+// Lee todos los .txt de la carpeta y devuelve pares (ruta, contenido)
 std::vector<std::pair<std::string, std::string>>
 leerArchivosRecursivos(const std::string& carpeta) {
     std::vector<std::pair<std::string, std::string>> archivos;
@@ -33,140 +36,108 @@ leerArchivosRecursivos(const std::string& carpeta) {
     return archivos;
 }
 
-// Mapea posiciones globales en T_full a posiciones por documento
-std::vector<std::vector<int>> mapearPosiciones(
-    const std::vector<int>& posiciones,
-    const std::vector<int>& offsets
-) {
-    int n_docs = int(offsets.size()) - 1;
-    std::vector<std::vector<int>> resultados(n_docs);
-    for (int pos : posiciones) {
-        auto it = std::upper_bound(offsets.begin(), offsets.end(), pos);
-        if (it == offsets.begin() || it == offsets.end()) continue;
-        int idx = int(it - offsets.begin()) - 1;
-        resultados[idx].push_back(pos - offsets[idx]);
+// Genera N patrones aleatorios de longitudes entre minLen y maxLen,
+// usando caracteres alfanuméricos [A–Z][a–z][0–9]
+std::vector<std::string> generarPatronesAleatorios(int N,
+                                                   int minLen = 3,
+                                                   int maxLen = 7) {
+    std::vector<std::string> patrones;
+    patrones.reserve(N);
+
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<int> lenDist(minLen, maxLen);
+    // 0–61: 0–25 → 'A'–'Z'; 26–51 → 'a'–'z'; 52–61 → '0'–'9'
+    std::uniform_int_distribution<int> charDist(0, 61);
+
+    for (int i = 0; i < N; ++i) {
+        int L = lenDist(gen);
+        std::string p;
+        p.reserve(L);
+        for (int j = 0; j < L; ++j) {
+            int x = charDist(gen);
+            if (x < 26)          p.push_back(char('A' + x));
+            else if (x < 52)     p.push_back(char('a' + (x - 26)));
+            else /* 52–61 */     p.push_back(char('0' + (x - 52)));
+        }
+        patrones.push_back(std::move(p));
     }
-    return resultados;
+    return patrones;
 }
 
 int main() {
-    const std::string carpeta = "documentos";
-    std::cout << "Ingrese patron a buscar: ";
-    std::string patron;
-    std::getline(std::cin, patron);
-
     // 1) Cargo TODOS los documentos
-    auto todos = leerArchivosRecursivos(carpeta);
-    int total = (int)todos.size();
-    if (total == 0) {
-        std::cerr << "No se encontraron archivos en '" << carpeta << "'\n";
+    auto todos = leerArchivosRecursivos("documentos");
+    int total = todos.size();
+    if (!total) {
+        std::cerr << "No hay archivos en 'documentos'\n";
         return 1;
     }
 
-    // 2) Concatenar T_full y offsets_full
+    // 2) Construyo T_full y offsets_full para **todo** el corpus
     std::string T_full;
     std::vector<int> offsets_full;
-    size_t suma = 0;
-    for (auto &p : todos) suma += p.second.size() + 1;
-    T_full.reserve(suma);
-    offsets_full.reserve(total + 1);
+    size_t cap = 0;
+    for (auto &p : todos) cap += p.second.size()+1;
+    T_full.reserve(cap);
+    offsets_full.reserve(total+1);
     for (auto &p : todos) {
-        offsets_full.push_back((int)T_full.size());
+        offsets_full.push_back(T_full.size());
         T_full += p.second;
         T_full.push_back('$');
     }
-    offsets_full.push_back((int)T_full.size());
+    offsets_full.push_back(T_full.size());
 
-    // 3) Construir SA_FULL UNA SOLA VEZ (sobre T_full + '$')
-    std::cout << "\n-- SA_FULL build --\n";
-    auto t_sa0 = Clock::now();
+    // 3) Construyo el SA **solo una vez**
+    std::cout << "-- Construyendo SA sobre " << total << " archivos --\n";
+    auto t0 = Clock::now();
     auto sa_full = suffix_array_construction(T_full + "$");
-    auto t_sa1 = Clock::now();
-    std::cout << "Tiempo build SA: "
-              << ns(t_sa1 - t_sa0).count() * 1e-6
+    auto t1 = Clock::now();
+    std::cout << "  Tiempo build SA: "
+              << ns(t1 - t0).count()*1e-6
               << " ms\n";
 
-    // 4) Tamaños de experimento: 10,20,... hasta total
-    std::vector<int> tamaños;
-    for (int k = 10; k <= total; k += 10) tamaños.push_back(k);
-    if (tamaños.empty()) tamaños.push_back(total);
+    // 4) Configuro los experimentos:
+    std::vector<int> lotesDoc, lotesPat = {100,200,300,1000,2000};
+    for (int k = 10; k <= std::min(total,100); k+=10)
+        lotesDoc.push_back(k);
 
-    // Lambda de impresión
-    auto imprimir = [&](const std::string& nombre,
-                        const std::vector<std::vector<int>>& res,
-                        double tiempo_ms,
-                        const std::vector<std::pair<std::string,std::string>>& docs) {
-        std::cout << "\n-- " << nombre
-                  << " (" << tiempo_ms << " ms) --\n";
-        for (int i = 0; i < (int)res.size(); ++i) {
-            if (!res[i].empty()) {
-                std::cout << "  " << docs[i].first << ": ";
-                for (int p : res[i]) std::cout << p << " ";
-                std::cout << "\n";
+    // 5) Para cada tamaño de corpus parcial...
+    for (int Ndoc : lotesDoc) {
+        std::cout << "\n=== Usando primeros " << Ndoc << " archivos ===\n";
+        int limite = offsets_full[Ndoc];
+
+        // 6) Para cada lote de patrones...
+        for (int Npat : lotesPat) {
+            auto patrones = generarPatronesAleatorios(Npat,3,7);
+            double tbm=0, tk=0, tr=0, tsa=0;
+
+            for (auto &p : patrones) {
+                auto a = Clock::now();
+                boyerMooreSearch(T_full, p);
+                tbm += ns(Clock::now()-a).count()*1e-6;
+
+                auto b = Clock::now();
+                kmpSearch(T_full, p);
+                tk += ns(Clock::now()-b).count()*1e-6;
+
+                auto c = Clock::now();
+                rabinKarpSearch(T_full, p);
+                tr += ns(Clock::now()-c).count()*1e-6;
+
+                auto d = Clock::now();
+                // buscas en todo T_full pero filtras después
+                auto occ = suffixArraySearch(T_full+"$", p, sa_full);
+                tsa += ns(Clock::now()-d).count()*1e-6;
+                // opcional: filtrar occ < limite si quieres contar/exhibir posiciones
             }
+
+            std::cout << "  -- " << Npat << " patrones --\n"
+                      << "    BM:  " << tbm << " ms\n"
+                      << "    KMP: " << tk  << " ms\n"
+                      << "    RK:  " << tr  << " ms\n"
+                      << "    SA:  " << tsa << " ms\n";
         }
-    };
-
-    // 5) Bucle de experimentos
-    for (int k : tamaños) {
-        std::cout << "\n=== Experimento con " << k << " documentos ===\n";
-        auto docs = std::vector<std::pair<std::string,std::string>>(
-            todos.begin(), todos.begin() + k
-        );
-        int limite = offsets_full[k];
-
-        // Boyer-Moore
-        auto t0 = Clock::now();
-        auto bm_full = boyerMooreSearch(T_full, patron);
-        auto t1 = Clock::now();
-        double bm_ms = ns(t1 - t0).count() * 1e-6;
-        std::vector<int> bm_pos;
-        for (int p : bm_full) if (p < limite) bm_pos.push_back(p);
-        auto bm_res = mapearPosiciones(bm_pos,
-            std::vector<int>(offsets_full.begin(),
-                             offsets_full.begin() + k + 1)
-        );
-        imprimir("Boyer-Moore", bm_res, bm_ms, docs);
-
-        // KMP
-        auto t2 = Clock::now();
-        auto kmp_full = kmpSearch(T_full, patron);
-        auto t3 = Clock::now();
-        double kmp_ms = ns(t3 - t2).count() * 1e-6;
-        std::vector<int> kmp_pos;
-        for (int p : kmp_full) if (p < limite) kmp_pos.push_back(p);
-        auto kmp_res = mapearPosiciones(kmp_pos,
-            std::vector<int>(offsets_full.begin(),
-                             offsets_full.begin() + k + 1)
-        );
-        imprimir("Knuth-Morris-Pratt", kmp_res, kmp_ms, docs);
-
-        // Rabin-Karp
-        auto t4 = Clock::now();
-        auto rk_full = rabinKarpSearch(T_full, patron);
-        auto t5 = Clock::now();
-        double rk_ms = ns(t5 - t4).count() * 1e-6;
-        std::vector<int> rk_pos;
-        for (int p : rk_full) if (p < limite) rk_pos.push_back(p);
-        auto rk_res = mapearPosiciones(rk_pos,
-            std::vector<int>(offsets_full.begin(),
-                             offsets_full.begin() + k + 1)
-        );
-        imprimir("Rabin-Karp", rk_res, rk_ms, docs);
-
-        // Suffix-Array search (uso T_full+"$")
-        auto t6 = Clock::now();
-        auto sa_full_pos = suffixArraySearch(T_full + "$", patron, sa_full);
-        auto t7 = Clock::now();
-        double sa_ms = ns(t7 - t6).count() * 1e-6;
-        std::vector<int> sa_pos;
-        for (int p : sa_full_pos) if (p < limite) sa_pos.push_back(p);
-        auto sa_res = mapearPosiciones(sa_pos,
-            std::vector<int>(offsets_full.begin(),
-                             offsets_full.begin() + k + 1)
-        );
-        imprimir("Suffix-Array search", sa_res, sa_ms, docs);
     }
-
     return 0;
 }
